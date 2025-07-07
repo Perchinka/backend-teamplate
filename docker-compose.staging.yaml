@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16.3
+    environment:
+      POSTGRES_PASSWORD: docker
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all -c max_connections=2000
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: always
+
+  migrations:
+    image: amacneil/dbmate:latest
+    command: -d db/migrations up
+    environment:
+      DATABASE_URL: postgres://postgres:docker@postgres:5432/postgres?sslmode=disable
+    volumes:
+      - ./db/migrations:/db/migrations
+    depends_on:
+      - postgres
+
+  backend:
+      image: {server}/blog-service:latest
+      environment:
+        - ENV=staging
+      links:
+        - "postgres"
+      depends_on:
+        - "postgres"
+      logging:
+        options:
+          max-size: 10m
+          max-file: "3"
+      volumes:
+        - ./secrets:/home/app/secrets:ro
+        - ./config:/home/app/config
+        - ./static:/home/app/static:rw
+      restart: always
+
+  web-app:
+    image: {server}/web-app:latest
+    links:
+      - "backend"
+    environment:
+      - ENV=staging
+      - DNS_PREFIX=staging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./certbot/www/:/var/www/certbot/:ro
+      - ./certbot/conf:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx:rw
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./static:/static
+    restart: always
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - ./certbot/www/:/var/www/certbot/:rw
+      - ./certbot/conf/:/etc/letsencrypt/:rw
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
