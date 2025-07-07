@@ -45,7 +45,5 @@ services:
         max-file: "3"
     volumes:
       - ./src:/home/app/src:delegated
-      - ./secrets:/home/app/secrets
-      - ./config:/home/app/config
     ports:
       - "8080:8080"

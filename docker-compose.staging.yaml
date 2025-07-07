@@ -33,8 +33,6 @@ services:
           max-size: 10m
           max-file: "3"
       volumes:
-        - ./secrets:/home/app/secrets:ro
-        - ./config:/home/app/config
         - ./static:/home/app/static:rw
       restart: always
 
